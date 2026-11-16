@@ -116,6 +116,10 @@ mod imp {
         }
     }
 
+    pub fn otwarcia() -> u64 {
+        0
+    }
+
     pub fn info_awaryjne(_sciezka: &Path, _w: &Wolumin) -> Option<Info> {
         None
     }
@@ -308,6 +312,12 @@ mod imp {
     /// Bufor na jedna porcje wpisow; u64, zeby rekordy (wyrownane do 8) lezaly rowno.
     const BUFOR_SLOW: usize = 64 * 1024 / 8;
 
+    /// Ile plikow trzeba bylo otworzyc po prawdziwe miejsce na dysku (do pomiaru w biegu na Windows).
+    static OTWARCIA: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    pub fn otwarcia() -> u64 {
+        OTWARCIA.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
     struct Uchwyt(HANDLE);
     impl Drop for Uchwyt {
         fn drop(&mut self) {
@@ -427,11 +437,17 @@ mod imp {
                 return Info { rodzaj: RODZAJ_KATALOG, rozmiar: 0, na_dysku: 0, mtime, klucz_linku: None, urzadzenie: 0 };
             }
             let rozmiar = self.koniec;
-            // Zwykly plik zajmuje co najmniej rozmiar zaokraglony do klastra (maly plik w MFT
-            // liczymy jak dawniej, czyli jako klaster). Skompresowany, rzadki, CompactOS, OneDrive:
-            // dopiero system zna prawdziwe miejsce, wiec tylko te pliki sa otwierane.
-            let zwykle = self.przydzial.max(do_klastra(rozmiar, w.klaster));
-            let na_dysku = if self.atrybuty & (FILE_ATTRIBUTE_COMPRESSED | FILE_ATTRIBUTE_SPARSE_FILE) != 0 || reparse {
+            // Zwykly plik: przydzial z katalogu, a maly plik w MFT (przydzial nie jest wielokrotnoscia
+            // klastra) liczymy jak dawniej, czyli jako klaster. Skompresowany, rzadki, OneDrive oraz
+            // kazdy z przydzialem mniejszym niz rozmiar (CompactOS chowa swoj znacznik, a wpis
+            // drugiej nazwy twardego linku bywa nieaktualny): dopiero system zna prawdziwe miejsce,
+            // wiec tylko te pliki sa otwierane.
+            let zwykle = do_klastra(self.przydzial.max(rozmiar), w.klaster);
+            let pytaj = self.atrybuty & (FILE_ATTRIBUTE_COMPRESSED | FILE_ATTRIBUTE_SPARSE_FILE) != 0
+                || reparse
+                || self.przydzial < rozmiar;
+            let na_dysku = if pytaj {
+                OTWARCIA.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 match skompresowany(&szeroka(&sciezka())) {
                     Ok(n) => do_klastra(n, w.klaster),
                     Err(_) if self.przydzial > 0 => self.przydzial,

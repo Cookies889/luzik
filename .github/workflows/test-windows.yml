@@ -28,7 +28,11 @@ jobs:
       - name: Skan C:\ kontra Get-PSDrive
         run: |
           cargo build --release --bin luzik-cli
+          $env:LUZIK_DIAG = '1'
           $w = & ./target/release/luzik-cli.exe skanuj 'C:\' | ConvertFrom-Json
+          "Twarde linki pominiete: {0}" -f $w.twarde_linki_pominiete
+          $w2 = & ./target/release/luzik-cli.exe skanuj 'C:\' | ConvertFrom-Json
+          "Drugi skan (dysk juz w pamieci systemu): {0:F1} s" -f ([double]$w2.czas_ms / 1000)
           $d = Get-PSDrive C
           $zajete = [double]$d.Used
           $luzik = [double]$w.na_dysku

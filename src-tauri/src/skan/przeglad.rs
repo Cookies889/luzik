@@ -266,6 +266,14 @@ pub fn skanuj(
         zglos(w.postep(start, true));
     }
 
+    if std::env::var_os("LUZIK_DIAG").is_some() {
+        eprintln!(
+            "LUZIK_DIAG watki {} otwarte pliki {} przeglad {} ms",
+            liczba_watkow(opcje),
+            platforma::otwarcia(),
+            start.elapsed().as_millis()
+        );
+    }
     let mut drzewo = w.budowa.into_inner().unwrap();
     drzewo.zsumuj();
     let statystyki = Statystyki {

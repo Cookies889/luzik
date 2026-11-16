@@ -1,5 +1,6 @@
 # Test na prawdziwym Windows: cargo test, skan C:\ porównany z zajętym miejscem
-# z Get-PSDrive C (rozbieżność ponad 3% = błąd, obie liczby w logu) i reguły porządków.
+# z Get-PSDrive C (rozbieżność ponad 3% = błąd, obie liczby w logu), czas skanu
+# (120 s i więcej = błąd) i reguły porządków.
 name: test-windows
 
 on:
@@ -34,7 +35,10 @@ jobs:
           $roznica = [math]::Abs($luzik - $zajete) / $zajete * 100
           "Luzik na dysku: {0:N0} B, pliki {1}, katalogi {2}, bledy {3}, czas {4} ms" -f $luzik, $w.pliki, $w.katalogi, $w.bledy_razem, $w.czas_ms
           "Get-PSDrive C zajete: {0:N0} B" -f $zajete
-          "Rozbieznosc: {0:N2}%" -f $roznica
+          "Rozbieznosc: {0:F2}%" -f $roznica
+          $sekundy = [double]$w.czas_ms / 1000
+          "Czas skanu C:\: {0:F1} s ({1:N0} plikow/s)" -f $sekundy, ($w.pliki / [math]::Max($sekundy, 0.001))
           if ($roznica -gt 3) { throw "Rozbieznosc ponad 3%" }
+          if ($sekundy -ge 120) { throw "Skan C:\ trwal $sekundy s (prog 120 s)" }
       - name: Porzadki
         run: ./target/release/luzik-cli.exe porzadki

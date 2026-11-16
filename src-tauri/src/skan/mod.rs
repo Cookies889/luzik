@@ -14,6 +14,8 @@ pub(crate) mod platforma;
 mod przeglad;
 #[cfg(all(test, unix))]
 mod testy;
+#[cfg(test)]
+mod testy_wspolne;
 
 pub use drzewo::{Drzewo, Wezel, Wiersz};
 pub use dyski::{lista_dyskow, Dysk};

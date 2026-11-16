@@ -12,9 +12,13 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering::Relaxed};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
+const CZESCI_LINKOW: usize = 64;
+
 struct Wspolne<'a> {
     budowa: Mutex<Drzewo>,
-    linki: Mutex<HashSet<(u64, u64)>>,
+    /// Klucze plikow z kilkoma nazwami, w czesciach: na Windows klucz ma kazdy plik,
+    /// wiec jedna blokada na 1,2 mln wpisow bylaby waskim gardlem.
+    linki: Vec<Mutex<HashSet<(u64, u64)>>>,
     bledy: Mutex<Vec<Blad>>,
     biezacy: Mutex<String>,
     pliki: AtomicU64,
@@ -30,6 +34,12 @@ struct Wspolne<'a> {
 }
 
 impl Wspolne<'_> {
+    /// true, gdy plik o tym kluczu pojawia sie pierwszy raz.
+    fn nowy_plik(&self, klucz: (u64, u64)) -> bool {
+        let czesc = (klucz.1 ^ (klucz.1 >> 16) ^ klucz.0) as usize % CZESCI_LINKOW;
+        self.linki[czesc].lock().unwrap().insert(klucz)
+    }
+
     fn blad(&self, sciezka: &Path, e: &io::Error) {
         self.bledy_razem.fetch_add(1, Relaxed);
         let mut lista = self.bledy.lock().unwrap();
@@ -91,41 +101,18 @@ fn przejdz<'s>(w: &'s Wspolne<'s>, zakres: &rayon::Scope<'s>, sciezka: PathBuf, 
         b.clear();
         b.push_str(&sciezka.to_string_lossy());
     }
-    let czytnik = match std::fs::read_dir(&sciezka) {
-        Ok(c) => c,
-        Err(e) => {
-            w.blad(&sciezka, &e);
-            w.budowa.lock().unwrap().wezly[id as usize].flagi |= FLAGA_NIEDOSTEPNY;
-            return;
-        }
-    };
-
     // Dzieci zbierane lokalnie, bez blokady: wezly z nazwami w malym buforze.
     let mut wezly: Vec<Wezel> = Vec::new();
     let mut nazwy: Vec<u8> = Vec::new();
     let mut podkatalogi: Vec<(u32, OsString)> = Vec::new();
     let (mut pliki, mut katalogi, mut bajty) = (0u64, 0u64, 0u64);
 
-    for wpis in czytnik {
-        let wpis = match wpis {
+    let wynik = platforma::wypisz(&sciezka, &w.wolumin, &mut |wpis| {
+        let (nazwa, info) = match wpis {
             Ok(x) => x,
-            Err(e) => {
-                w.blad(&sciezka, &e);
-                continue;
-            }
-        };
-        let nazwa = wpis.file_name();
-        let info = match wpis.metadata() {
-            Ok(m) => platforma::info(&m, &|| wpis.path(), &w.wolumin),
-            Err(e) => {
-                let p = wpis.path();
-                match platforma::info_awaryjne(&p, &w.wolumin) {
-                    Some(i) => i,
-                    None => {
-                        w.blad(&p, &e);
-                        continue;
-                    }
-                }
+            Err((p, e)) => {
+                w.blad(&p, &e);
+                return;
             }
         };
         let mut flagi = 0u8;
@@ -146,7 +133,7 @@ fn przejdz<'s>(w: &'s Wspolne<'s>, zakres: &rayon::Scope<'s>, sciezka: PathBuf, 
             _ => pliki += 1,
         }
         if let Some(klucz) = info.klucz_linku {
-            if !w.linki.lock().unwrap().insert(klucz) {
+            if !w.nowy_plik(klucz) {
                 flagi |= FLAGA_DUPLIKAT;
                 w.duplikaty.fetch_add(1, Relaxed);
             }
@@ -157,6 +144,14 @@ fn przejdz<'s>(w: &'s Wspolne<'s>, zakres: &rayon::Scope<'s>, sciezka: PathBuf, 
         let n = bajty_nazwy(&nazwa);
         wezly.push(nowy_wezel(&info, id, nazwy.len() as u32, n.len(), flagi));
         nazwy.extend_from_slice(&n[..n.len().min(u16::MAX as usize)]);
+    });
+    if let Err(e) = wynik {
+        w.blad(&sciezka, &e);
+        // Katalog, ktorego nie dalo sie otworzyc: oznaczony. Blad w polowie: zostaje to, co juz przeczytane.
+        if wezly.is_empty() {
+            w.budowa.lock().unwrap().wezly[id as usize].flagi |= FLAGA_NIEDOSTEPNY;
+            return;
+        }
     }
 
     w.pliki.fetch_add(pliki, Relaxed);
@@ -224,7 +219,7 @@ pub fn skanuj(
     let katalog = info.rodzaj == RODZAJ_KATALOG;
     let w = Wspolne {
         budowa: Mutex::new(drzewo),
-        linki: Mutex::new(HashSet::new()),
+        linki: (0..CZESCI_LINKOW).map(|_| Mutex::new(HashSet::new())).collect(),
         bledy: Mutex::new(Vec::new()),
         biezacy: Mutex::new(korzen.to_string_lossy().into_owned()),
         pliki: AtomicU64::new(u64::from(!katalog)),

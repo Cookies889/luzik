@@ -1,6 +1,6 @@
 [package]
 name = "luzik"
-version = "0.1.0"
+version = "0.1.1"
 description = "Luzik: co zajmuje dysk i co mozna bezpiecznie usunac"
 edition = "2021"
 default-run = "luzik"

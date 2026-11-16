@@ -4,6 +4,10 @@ Ten plik czyta znajomy: punkty pod wersją trafiają do paska „Nowa wersja” 
 i na stronę wydania. Pisz, co zmieniło się dla niego, krótko i po ludzku, bez nazw plików.
 Workflow `wydanie` nie zbuduje wersji, której tu brakuje.
 
+## 0.1.2
+
+- Skan dysku C: kilka razy szybszy, wynik tak samo dokładny
+
 ## 0.1.1
 
 - Usuwanie plików sprawdzone na prawdziwym Windowsie 11

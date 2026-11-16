@@ -1,0 +1,35 @@
+# Pomiar: zimny skan C:\ przy różnej liczbie wątków. Każda liczba na osobnej,
+# świeżej maszynie, bo drugi skan na tej samej leci już z pamięci systemu.
+# Niczego nie blokuje i nie ma progów, uruchamiany ręcznie.
+name: pomiar-watki
+
+on:
+  workflow_dispatch:
+
+jobs:
+  pomiar:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        watki: [4, 8, 16, 32]
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: src-tauri
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+      - name: Atrapa dist (okno nie jest tu potrzebne)
+        run: New-Item -ItemType Directory -Force ../dist | Out-Null; Set-Content ../dist/index.html '<!doctype html>'
+      - name: Zimny skan C:\ na ${{ matrix.watki }} wątkach
+        run: |
+          cargo build --release --bin luzik-cli
+          $env:LUZIK_DIAG = '1'
+          $w = & ./target/release/luzik-cli.exe skanuj 'C:\' --watki ${{ matrix.watki }} | ConvertFrom-Json
+          $zajete = [double](Get-PSDrive C).Used
+          $roznica = [math]::Abs([double]$w.na_dysku - $zajete) / $zajete * 100
+          "POMIAR watki ${{ matrix.watki }}: czas {0:F1} s, pliki {1}, rozbieznosc {2:F2}%" -f ([double]$w.czas_ms / 1000), $w.pliki, $roznica

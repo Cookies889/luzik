@@ -29,7 +29,11 @@ pub fn plik(sciezka: &Path, bajty: usize, dni: f64) -> io::Result<()> {
     let tresc: Vec<u8> = (0..bajty).map(|i| ziarno.wrapping_add((i % 251) as u8)).collect();
     f.write_all(&tresc)?;
     let czas = SystemTime::now() - Duration::from_secs_f64(dni * 86_400.0);
-    f.set_times(FileTimes::new().set_modified(czas).set_accessed(czas))?;
+    let czasy = FileTimes::new().set_modified(czas).set_accessed(czas);
+    // Na Windows wiek liczy sie tez od utworzenia, wiec cofamy i te date.
+    #[cfg(windows)]
+    let czasy = std::os::windows::fs::FileTimesExt::set_created(czasy, czas);
+    f.set_times(czasy)?;
     Ok(())
 }
 

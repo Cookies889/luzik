@@ -120,7 +120,8 @@ fn blokada_w_usuwaniu_nic_nie_rusza_na_sztucznym_c() {
 
     let ochrona = Ochrona::windows(&srod);
     let usuwacz = Usuwacz { ochrona: &ochrona, kosz: Kosz::Katalog(tmp.path().join("kosz")) };
-    let chronione = vec![
+    #[allow(unused_mut)]
+    let mut chronione = vec![
         c.clone(),
         c.join("Windows"),
         s32.clone(),
@@ -129,8 +130,10 @@ fn blokada_w_usuwaniu_nic_nie_rusza_na_sztucznym_c() {
         c.join("Users"),
         profil.clone(),
         profil.join("Documents"),
-        profil.join("skrot").join("kernel32.dll"),
     ];
+    // Dowiazanie tworzymy tylko na Linuksie (na Windows wymaga uprawnien).
+    #[cfg(unix)]
+    chronione.push(profil.join("skrot").join("kernel32.dll"));
     for tryb in [Tryb::Trwale, Tryb::Kosz] {
         let w = usuwacz.usun(&chronione, tryb);
         assert_eq!(w.pozycje, 0, "{tryb:?}: {:?}", w.pominiete);

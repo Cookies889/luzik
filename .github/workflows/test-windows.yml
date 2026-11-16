@@ -11,6 +11,9 @@ on:
 jobs:
   windows:
     runs-on: windows-latest
+    env:
+      # Manifest dla plikow testowych, patrz src-tauri/build.rs.
+      LUZIK_MANIFEST_TESTOW: '1'
     defaults:
       run:
         shell: pwsh

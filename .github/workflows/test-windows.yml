@@ -29,10 +29,17 @@ jobs:
         run: |
           cargo build --release --bin luzik-cli
           $env:LUZIK_DIAG = '1'
+          # Pierwszy skan na zimnym dysku: runner ma uprawnienia administratora, wiec idzie
+          # szybka droga (tablica plikow NTFS czytana ciagiem). To jego czas i sume sprawdzamy.
           $w = & ./target/release/luzik-cli.exe skanuj 'C:\' | ConvertFrom-Json
-          "Twarde linki pominiete: {0}" -f $w.twarde_linki_pominiete
+          "Twarde linki pominiete: {0}, dowiazania {1}" -f $w.twarde_linki_pominiete, $w.dowiazania
+          # Drugi skan zwykla droga po katalogach (tak skanuje Luzik bez administratora):
+          # tylko do porownania w logu, bez progu.
+          $env:LUZIK_BEZ_MFT = '1'
           $w2 = & ./target/release/luzik-cli.exe skanuj 'C:\' | ConvertFrom-Json
-          "Drugi skan (dysk juz w pamieci systemu): {0:F1} s" -f ([double]$w2.czas_ms / 1000)
+          $env:LUZIK_BEZ_MFT = $null
+          "Po katalogach: {0:N0} B, pliki {1}, katalogi {2}, dowiazania {3}, twarde linki {4}, bledy {5}, czas {6:F1} s" -f ([double]$w2.na_dysku), $w2.pliki, $w2.katalogi, $w2.dowiazania, $w2.twarde_linki_pominiete, $w2.bledy_razem, ([double]$w2.czas_ms / 1000)
+          "Obie drogi: roznica miejsca {0:F2}%, plikow {1}" -f (([double]$w.na_dysku - [double]$w2.na_dysku) / [double]$w2.na_dysku * 100), ($w.pliki - $w2.pliki)
           $d = Get-PSDrive C
           $zajete = [double]$d.Used
           $luzik = [double]$w.na_dysku

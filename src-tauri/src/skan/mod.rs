@@ -4,12 +4,16 @@
 //! - twardy link liczony raz, po (wolumin, numer pliku),
 //! - do dowiazan symbolicznych i junctionow skan nie wchodzi, liczy je osobno,
 //! - brak dostepu nie przerywa skanu: trafia do licznika i na liste sciezek,
-//! - postep co 100 ms i anulowanie flaga.
+//! - postep co 100 ms i anulowanie flaga,
+//! - Windows, caly dysk NTFS, uprawnienia administratora: zamiast chodzic po katalogach
+//!   skan czyta ciagiem tablice plikow (`mft`); bez uprawnien idzie zwykla droga.
 //!
 //! Modul nie zna Tauri: te same funkcje wola aplikacja, `luzik-cli` i testy.
 
 pub mod drzewo;
 pub mod dyski;
+#[cfg_attr(not(windows), allow(dead_code))]
+mod mft;
 pub(crate) mod platforma;
 mod przeglad;
 #[cfg(all(test, unix))]

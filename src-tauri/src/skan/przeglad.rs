@@ -208,6 +208,14 @@ pub fn skanuj(
             .ok_or_else(|| io::Error::new(e.kind(), format!("{}: {e}", korzen.display())))?,
     };
 
+    // Caly dysk NTFS z uprawnieniami administratora: tablica plikow czytana ciagiem.
+    #[cfg(windows)]
+    if info.rodzaj == RODZAJ_KATALOG {
+        if let Some(wynik) = super::mft::skanuj(korzen, anuluj, postep, start) {
+            return Ok(wynik);
+        }
+    }
+
     let mut drzewo = Drzewo::default();
     let nazwa = korzen.to_string_lossy().into_owned().into_bytes();
     let mut pierwszy = nowy_wezel(&info, BRAK, 0, nazwa.len(), 0);

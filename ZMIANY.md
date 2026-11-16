@@ -6,7 +6,8 @@ Workflow `wydanie` nie zbuduje wersji, której tu brakuje.
 
 ## 0.1.2
 
-- Skan dysku C: kilka razy szybszy, wynik tak samo dokładny
+- Skan dysku szybszy, wynik tak samo dokładny
+- Najszybciej skanuje cały dysk, gdy Luzik jest uruchomiony jako administrator
 
 ## 0.1.1
 

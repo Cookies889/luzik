@@ -17,7 +17,8 @@ ją i uruchomi się ponownie. Paczki aktualizacji są podpisane, więc Luzik nie
 
 ## Dla autora
 
-- Nowa wersja: podbij `version` w `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` i `package.json`,
+- Nowa wersja: dopisz punkty dla znajomego w `ZMIANY.md` (sekcja `## X.Y.Z`; bez niej wydanie się nie zbuduje),
+  podbij `version` w `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` i `package.json`,
   potem utwórz tag `vX.Y.Z` i wyślij go na GitHuba. Workflow `wydanie` zbuduje instalator i `latest.json`.
 - Klucz prywatny podpisu leży poza repo (`~/.config/luzik-klucz/luzik.key`) i w sekrecie
   `TAURI_SIGNING_PRIVATE_KEY`. Bez niego nie da się wydać aktualizacji, którą przyjmą zainstalowane kopie.

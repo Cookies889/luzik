@@ -5,6 +5,7 @@
 // W zwyklej przegladarce ?aktualizacja=1 pokazuje pasek z przykladowa wersja (podglad).
 
 import { esc, rozmiar } from './format';
+import { punktyZmian } from './zmiany';
 
 const CO_ILE_MS = 6 * 60 * 60 * 1000;
 
@@ -55,7 +56,7 @@ function udawana(): Nowa {
 }
 
 function listaZmian(tekst: string): string {
-  const linie = tekst.split('\n').map((l) => l.replace(/^\s*[-*]\s*/, '').trim()).filter(Boolean).slice(0, 6);
+  const linie = punktyZmian(tekst);
   if (!linie.length) return '';
   return `<ul class="akt-zmiany">${linie.map((l) => `<li>${esc(l)}</li>`).join('')}</ul>`;
 }

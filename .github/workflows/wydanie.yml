@@ -15,6 +15,16 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      # Lista zmian dla znajomego bierze się z ZMIANY.md, nie z treści commita
+      # (tam są notatki dla programisty i stopka Co-Authored-By).
+      - name: Lista zmian z ZMIANY.md
+        id: zmiany
+        shell: bash
+        run: |
+          wersja="${GITHUB_REF_NAME#v}"
+          awk -v w="## $wersja" '{ sub(/\r$/, "") } $0 == w { t = 1; next } /^## / { t = 0 } t && NF' ZMIANY.md > zmiany.txt
+          if [ ! -s zmiany.txt ]; then echo "::error::ZMIANY.md nie ma punktów dla wersji $wersja"; exit 1; fi
+          { echo 'tekst<<KONIEC_ZMIAN'; cat zmiany.txt; echo 'KONIEC_ZMIAN'; } >> "$GITHUB_OUTPUT"
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -32,7 +42,7 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: Luzik ${{ github.ref_name }}
-          releaseBody: ${{ github.event.head_commit.message }}
+          releaseBody: ${{ steps.zmiany.outputs.tekst }}
           releaseDraft: false
           prerelease: false
           includeUpdaterJson: true

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 64 64">
+  <!-- Luzik: dysk jako pierscien z jedna wolna cwiartka (luz). Czytelne w 16 px: dwa kolory, gruby obrys. -->
+  <rect id="tlo" width="64" height="64" rx="14" fill="#151b1e"/>
+  <circle id="pierscien" cx="32" cy="32" r="17" fill="none" stroke="#3fd09b" stroke-width="10"
+          stroke-linecap="round" pathLength="100" stroke-dasharray="66 34" stroke-dashoffset="-9"
+          transform="rotate(-90 32 32)"/>
+</svg>

@@ -1,0 +1,39 @@
+# Wydanie: tag v* buduje Luzika na Windows (instalator NSIS po polsku), podpisuje paczkę
+# aktualizacji kluczem z sekretu TAURI_SIGNING_PRIVATE_KEY i publikuje Release z latest.json.
+# Aplikacja co 6 h pyta https://github.com/Cookies889/luzik/releases/latest/download/latest.json
+name: wydanie
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+      - run: npm ci
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: Luzik ${{ github.ref_name }}
+          releaseBody: ${{ github.event.head_commit.message }}
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: true
+          updaterJsonPreferNsis: true

@@ -574,6 +574,10 @@ export function udawanyBackend(): Backend {
   let anulowano = false;
   let trwa = false;
   const historia: WpisHistorii[] = [];
+  // Podglad usuwania poza aplikacja: w konsoli luzikUsunPozaAplikacja('C:\\Users\\...'),
+  // potem powrot do okna (focus) albo wejscie do folderu.
+  const poza = new Set<string>();
+  (globalThis as Record<string, unknown>).luzikUsunPozaAplikacja = (s: string) => void poza.add(s.toLowerCase());
 
   // zReguly: miejsca regul sa w Rust wyjatkami blokady (Ochrona::dodaj_miejsce_reguly), wiec
   // zostaje tylko blokada korzenia dysku.
@@ -693,6 +697,21 @@ export function udawanyBackend(): Backend {
         .flatMap((z) => z.miejsca.map((m) => m.sciezka));
       return usunSciezki(sciezki, tryb, `Do sprzątnięcia: ${ids.length}`, true);
     },
+    async usunWezly(ids, tryb, opis) {
+      await czekaj(600);
+      if (!biezace) throw new Error('Najpierw uruchom skan.');
+      return usunSciezki(ids.map((id) => biezace!.wezly[id]?.sciezka ?? ''), tryb, opis);
+    },
+    async odswiezPoziom(idWezla) {
+      if (!biezace || !poza.size) return null;
+      const w = biezace.wezly[idWezla];
+      if (!w) return null;
+      // Znikniete poza Luzikiem: sam folder albo jego bezposrednie dzieci (jak Drzewo::znikniete).
+      const brak = poza.has(w.sciezka.toLowerCase()) ? [w] : w.dzieci.map((id) => biezace!.wezly[id]).filter((d) => poza.has(d.sciezka.toLowerCase()));
+      if (!brak.length) return null;
+      for (const d of brak) biezace.usun(d);
+      return biezace.wiersz(biezace.wezly[0], true);
+    },
     async narzedzie(id) {
       await czekaj(1200);
       const z = znaleziska(biezace ?? c).find((x) => x.id === id);
@@ -713,5 +732,8 @@ export function udawanyBackend(): Backend {
       return null;
     },
     async autoskanKoniec() {},
+    async autoskanUsun() {
+      return false;
+    },
   };
 }

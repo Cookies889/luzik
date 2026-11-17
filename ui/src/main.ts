@@ -4,7 +4,7 @@
 import './styl.css';
 import type {
   Backend, Dysk, Pominiety, Podsumowanie, Postep, StanAdmina, StaryPlik, Tryb, WpisHistorii,
-  WynikDuplikatow, WynikKategorii, WynikUsuwania, Znalezisko,
+  Wiersz, WynikDuplikatow, WynikKategorii, WynikUsuwania, Znalezisko,
 } from './api';
 import { wybierzBackend } from './api';
 import {
@@ -149,7 +149,7 @@ function pokazOdzysk(gdzie: HTMLElement, o: Odzysk) {
   el.className = 'odzyskano';
   el.setAttribute('role', 'status');
   const czesci = [
-    o.pliki ? `${pliki(o.pliki)} ${o.tryb === 'trwale' ? 'usunięte na stałe' : 'w Koszu'}` : '',
+    o.pliki ? `${pliki(o.pliki)} ${o.tryb === 'trwale' ? `${odmiana(o.pliki, 'usunięty', 'usunięte', 'usuniętych')} na stałe` : 'w Koszu'}` : '',
     o.narzedzia ? `narzędzia Windows: ${liczba(o.narzedzia)}` : '',
   ].filter(Boolean);
   const gdzieTrafilo = czesci.length ? czesci.join(', ') : 'Nic nie usunięto';
@@ -170,6 +170,10 @@ function pokazOdzysk(gdzie: HTMLElement, o: Odzysk) {
 /** Ustawia ekran wyniku po usunieciu (nowy korzen, panele do przeliczenia). */
 let poUsunieciu: ((w: WynikUsuwania) => void) | null = null;
 let ostatniePodsumowanie: Podsumowanie | null = null;
+/** Przerysowuje otwarta mape po zmianie drzewa (ustawia ja panelMapy). */
+let odswiezMape: ((korzen: Wiersz) => void) | null = null;
+/** Zdejmuje nasluch okna starej mapy, gdy powstaje nowa. */
+let zdejmijMape: AbortController | null = null;
 
 function blad(miejsce: HTMLElement, e: unknown, ponow?: () => void) {
   miejsce.innerHTML = `<div class="pusto"><p>${esc(String((e as Error)?.message ?? e))}</p>${ponow ? '<button class="drugi">Spróbuj jeszcze raz</button>' : ''}</div>`;
@@ -347,6 +351,7 @@ function ekranWyniku(dysk: Dysk, p: Podsumowanie) {
     if (pod) pod.innerHTML = opisSkanu();
     for (const z of ['mapa', 'typy', 'stare'] as Zakladka[]) {
       const el = panele.get(z);
+      if (z === 'mapa' && el && !el.hidden) odswiezMape?.(w.korzen);
       if (!el || !el.hidden) continue;
       el.remove();
       panele.delete(z);
@@ -408,7 +413,10 @@ function panelMapy(el: HTMLElement, p: Podsumowanie) {
 
   const sb = new Sunburst(el.querySelector('canvas')!, p.korzen, {
     pobierzDzieci: (id) => backend.dzieci(id),
-    naZmiane: (c) => pokaz(c),
+    naZmiane: (c) => {
+      pokaz(c);
+      void sprawdzDysk();
+    },
     naNajechanie: (n, x, y) => {
       lista.querySelectorAll('.najechany').forEach((li) => li.classList.remove('najechany'));
       if (!n) return void (dymek.hidden = true);
@@ -420,6 +428,55 @@ function panelMapy(el: HTMLElement, p: Podsumowanie) {
     },
   });
   srodek.addEventListener('click', () => void sb.oddal());
+  odswiezMape = (k) => void sb.odswiez(k);
+
+  // Znajomy moze skasowac cos w Eksploratorze, gdy Luzik jest otwarty. Po powrocie do okna
+  // i przy wejsciu do folderu silnik sprawdza biezacy poziom i wyrzuca to, czego juz nie ma.
+  let sprawdzam = false;
+  async function sprawdzDysk() {
+    if (sprawdzam || el.hidden || !el.isConnected || document.hidden) return;
+    sprawdzam = true;
+    try {
+      const k = await backend.odswiezPoziom(sb.centrum.w.id);
+      if (k) poUsunieciu?.({ korzen: k } as WynikUsuwania);
+    } catch {
+      // Brak drzewa albo silnik zajety: sprawdzi przy nastepnej okazji.
+    } finally {
+      sprawdzam = false;
+    }
+  }
+  zdejmijMape?.abort();
+  zdejmijMape = new AbortController();
+  const sygnal = { signal: zdejmijMape.signal };
+  window.addEventListener('focus', () => void sprawdzDysk(), sygnal);
+  document.addEventListener('visibilitychange', () => void sprawdzDysk(), sygnal);
+
+  /** Pelna sciezka pozycji z mapy (korzen trzyma cala sciezke skanu). */
+  function sciezkaPozycji(n: Wezel): string {
+    const [korzen, ...reszta] = sb.sciezka(n);
+    const baza = korzen.w.sciezka ?? korzen.w.nazwa;
+    const sep = baza.includes('\\') ? '\\' : '/';
+    return reszta.reduce((s, x) => (s.endsWith(sep) ? s : s + sep) + x.w.nazwa, baza);
+  }
+
+  async function usunPozycje(n: Wezel) {
+    const katalog = n.w.rodzaj === 'katalog';
+    const tryb = await potwierdz({
+      tytul: katalog ? 'Usunąć folder z całą zawartością?' : 'Usunąć plik?',
+      pozycje: [{ nazwa: n.w.nazwa, sciezka: sciezkaPozycji(n), bajty: n.w.na_dysku, opis: katalog ? pliki(n.w.pliki) : undefined }],
+      zTrybem: true,
+    });
+    if (!tryb) return;
+    const o = nowyOdzysk(tryb);
+    try {
+      dolacz(o, await poKolei(() => backend.usunWezly([n.w.id], tryb, `Mapa dysku: ${n.w.nazwa}`)));
+    } catch (e) {
+      o.pominiete.push({ sciezka: n.w.nazwa, powod: String((e as Error)?.message ?? e) });
+      o.pominiete_razem++;
+    }
+    el.querySelector('.odzyskano')?.remove();
+    pokazOdzysk(el, o);
+  }
 
   function pokaz(c: Wezel) {
     // okruszki
@@ -451,6 +508,7 @@ function panelMapy(el: HTMLElement, p: Podsumowanie) {
             <span class="f-rozmiar">${rozmiar(n.w.na_dysku)}</span>
             <span class="f-pasek"><span style="--u:${(n.w.na_dysku / max).toFixed(4)};background:${kolor}"></span></span>
             <span class="f-opis slaby">${katalog ? pliki(n.w.pliki) : 'plik'}, ${procent(n.w.na_dysku, c.w.na_dysku)}</span>
+            <button class="f-usun" aria-label="Usuń ${esc(n.w.nazwa)}">Usuń</button>
           </li>`;
         })
         .join('') +
@@ -464,6 +522,12 @@ function panelMapy(el: HTMLElement, p: Podsumowanie) {
       const n = poId.get(li.dataset.id!)!;
       li.addEventListener('mouseenter', () => sb.podswietl(n));
       li.addEventListener('mouseleave', () => sb.podswietl(null));
+      const usun = li.querySelector<HTMLButtonElement>('.f-usun')!;
+      usun.addEventListener('click', (e) => {
+        e.stopPropagation();
+        void usunPozycje(n);
+      });
+      usun.addEventListener('keydown', (e) => e.stopPropagation());
       if (!li.classList.contains('folder')) return;
       li.addEventListener('click', () => void sb.przejdz(n));
       li.addEventListener('keydown', (e) => {
@@ -851,6 +915,40 @@ async function czekajNa(f: () => number, ms: number): Promise<number> {
 
 /** Okno samo woła prawdziwe komendy (lista_dyskow, skanuj, dzieci, porzadki_skanuj, kategorie),
  *  liczy wiersze listy na mapie i oddaje jedną linię JSON na stdout, po czym aplikacja się zamyka. */
+/**
+ * Samosprawdzenie usuwania w prawdziwym oknie (LUZIK_AUTOSKAN_USUN=1, skan katalogu testu):
+ * prawdziwy klik „Usuń” przy `do-usuniecia.bin` z trybem „Na stałe”, potem czekanie, az folder
+ * `zewnetrzny`, skasowany przez test poza aplikacja, zniknie z listy po powrocie do okna.
+ */
+async function probaUsuwania(): Promise<Record<string, unknown>> {
+  const wiersz = (nazwa: string) => [...app.querySelectorAll<HTMLLIElement>('.lista-folderow li[data-id]')].find((li) => li.title === nazwa);
+  const przed = ostatniePodsumowanie?.korzen.rozmiar ?? 0;
+  const cel = wiersz('do-usuniecia.bin');
+  if (!cel) return { blad: 'brak wiersza do-usuniecia.bin' };
+  cel.querySelector<HTMLButtonElement>('.f-usun')!.click();
+  if (!(await czekajNa(() => document.querySelectorAll('dialog[open] .pt-tak').length, 5000))) return { blad: 'brak okna potwierdzenia' };
+  const tytul = document.querySelector('dialog[open] .okno-tytul')?.textContent;
+  document.querySelector<HTMLInputElement>('dialog[open] input[value=trwale]')!.click();
+  const napis = document.querySelector('dialog[open] .pt-tak')?.textContent;
+  document.querySelector<HTMLButtonElement>('dialog[open] .pt-tak')!.click();
+  const zMapy = (await czekajNa(() => (wiersz('do-usuniecia.bin') ? 0 : 1), 10_000)) > 0;
+  const odzyskano = (await czekajNa(() => app.querySelectorAll('.panel-mapa .odzyskano').length, 5000))
+    ? app.querySelector('.panel-mapa .odzyskano-opis')?.textContent?.trim()
+    : undefined;
+  const poMapie = ostatniePodsumowanie?.korzen.rozmiar ?? 0;
+  // Test kasuje `zewnetrzny` dopiero, gdy zobaczy, ze plik zniknal z dysku; okno sprawdza po focusie.
+  const koniec = performance.now() + 30_000;
+  while (wiersz('zewnetrzny') && performance.now() < koniec) {
+    window.dispatchEvent(new Event('focus'));
+    await new Promise((r) => setTimeout(r, 300));
+  }
+  return {
+    tytul, napis, z_mapy: zMapy, odzyskano, przed, po_mapie: poMapie,
+    zewnetrzny_zniknal: !wiersz('zewnetrzny'), po_odswiezeniu: ostatniePodsumowanie?.korzen.rozmiar ?? 0,
+    podsumowanie: app.querySelector('.podsumowanie')?.textContent,
+  };
+}
+
 async function autoskan(sciezka: string) {
   const t0 = performance.now();
   try {
@@ -866,6 +964,7 @@ async function autoskan(sciezka: string) {
     const p = ostatniePodsumowanie as Podsumowanie | null;
     if (!p) throw new Error(app.querySelector('.pusto p')?.textContent ?? 'Skan się nie skończył.');
     const wiersze = await czekajNa(() => app.querySelectorAll('.lista-folderow li[data-id]').length, 20_000);
+    const usuwanie = (await backend.autoskanUsun().catch(() => false)) ? await probaUsuwania() : undefined;
     let porzadkiBlad: string | undefined;
     const znaleziska = await zaladujPorzadki().catch((e) => {
       porzadkiBlad = String((e as Error)?.message ?? e);
@@ -884,6 +983,7 @@ async function autoskan(sciezka: string) {
       porzadki_blad: porzadkiBlad,
       kategorie: kategorie.length,
       bledy_razem: p.bledy_razem,
+      usuwanie,
       czas_ms: Math.round(performance.now() - t0),
     });
   } catch (e) {

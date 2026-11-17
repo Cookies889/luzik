@@ -4,6 +4,11 @@ Ten plik czyta znajomy: punkty pod wersją trafiają do paska „Nowa wersja” 
 i na stronę wydania. Pisz, co zmieniło się dla niego, krótko i po ludzku, bez nazw plików.
 Workflow `wydanie` nie zbuduje wersji, której tu brakuje.
 
+## 0.1.3
+
+- Na mapie dysku można usunąć folder albo plik przyciskiem „Usuń”
+- Gdy coś zniknie z dysku poza Luzikiem, wynik sam się odświeża po powrocie do okna
+
 ## 0.1.2
 
 - Skan dysku szybszy, wynik tak samo dokładny

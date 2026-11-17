@@ -205,7 +205,7 @@ code, .sciezka, .biezacy { font-family: var(--mono); }
   display: flex; flex-direction: column; gap: 2px;
 }
 .lista-folderow > li[data-id] {
-  display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; grid-template-areas: "k n r" ". p p" ". o o";
+  display: grid; grid-template-columns: 10px minmax(0, 1fr) auto auto; grid-template-areas: "k n r u" ". p p u" ". o o u";
   column-gap: 12px; row-gap: 4px; align-items: center;
   padding: 10px 12px; border-radius: var(--r2); transition: background-color 120ms var(--ease-out);
 }
@@ -220,6 +220,18 @@ code, .sciezka, .biezacy { font-family: var(--mono); }
 .f-pasek { grid-area: p; height: 4px; border-radius: 2px; background: var(--powierzchnia-2); overflow: hidden; }
 .f-opis { grid-area: o; font-size: 12px; font-variant-numeric: tabular-nums; }
 .reszta { padding: 10px 12px 10px 34px; font-size: 13px; }
+.f-usun {
+  grid-area: u; align-self: center; min-height: 32px; padding: 0 12px; border-radius: var(--r2);
+  background: transparent; border: 1px solid var(--linia); color: inherit; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: opacity 120ms var(--ease-out), background-color 120ms var(--ease-out);
+}
+.f-usun:active { background: var(--powierzchnia-2); }
+/* Na myszy przycisk wychodzi przy najechaniu wiersza i przy fokusie, miejsce zostaje zarezerwowane. */
+@media (hover: hover) {
+  .lista-folderow > li .f-usun { opacity: 0; }
+  .lista-folderow > li:is(:hover, :focus-within) .f-usun { opacity: 1; }
+  .f-usun:hover { background: var(--powierzchnia); }
+}
 
 .dymek {
   position: absolute; left: 0; top: 0; z-index: 3; pointer-events: none;

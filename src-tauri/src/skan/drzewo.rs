@@ -244,6 +244,19 @@ impl Drzewo {
         true
     }
 
+    /// Wezly, ktorych juz nie ma na dysku: sam wezel `id` i jego bezposrednie dzieci
+    /// (np. znajomy skasowal je w Eksploratorze po skanie). Gdy brakuje samego wezla, dzieci
+    /// nie sprawdza, bo i tak zniknely razem z nim.
+    pub fn znikniete(&self, id: u32) -> Vec<u32> {
+        let jest = |i: u32| std::fs::symlink_metadata(self.sciezka(i)).is_ok();
+        match self.wezly.get(id as usize) {
+            None => Vec::new(),
+            Some(w) if w.usuniety() => Vec::new(),
+            Some(_) if id != 0 && !jest(id) => vec![id],
+            Some(_) => self.id_dzieci(id).filter(|&d| !self.wezly[d as usize].usuniety() && !jest(d)).collect(),
+        }
+    }
+
     /// `znajdz` i `usun` naraz.
     pub fn usun_sciezke(&mut self, sciezka: &str) -> bool {
         self.znajdz(sciezka).is_some_and(|id| self.usun(id))

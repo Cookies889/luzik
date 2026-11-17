@@ -255,6 +255,48 @@ pub async fn usun(
     Ok(wynik)
 }
 
+/// Usuwa pozycje z mapy dysku po numerach wezlow (pliki i cale foldery), dalej jak `usun`.
+#[tauri::command]
+pub async fn usun_wezly(
+    app: AppHandle,
+    stan: State<'_, Stan>,
+    ids: Vec<u32>,
+    tryb: Tryb,
+    opis: Option<String>,
+) -> Result<WynikUsuwania, String> {
+    let drzewo = stan.drzewo()?;
+    let mut sciezki = Vec::with_capacity(ids.len());
+    for id in ids {
+        if id == 0 || drzewo.wezel(id).is_none_or(|w| w.usuniety()) {
+            return Err("Tej pozycji nie ma już w wyniku skanu.".into());
+        }
+        sciezki.push(drzewo.sciezka(id));
+    }
+    drop(drzewo);
+    usun(app, stan, sciezki, tryb, opis).await
+}
+
+/// Odswieza poziom mapy: wyrzuca z wyniku to, czego nie ma juz na dysku (usuniete poza
+/// Luzikiem). Zwraca nowy korzen, gdy cos zniknelo, albo None, gdy wszystko jest na miejscu.
+#[tauri::command]
+pub async fn odswiez_poziom(stan: State<'_, Stan>, id_wezla: u32) -> Result<Option<Wiersz>, String> {
+    let drzewo = stan.drzewo()?;
+    let znikniete = tauri::async_runtime::spawn_blocking(move || drzewo.znikniete(id_wezla))
+        .await
+        .map_err(|e| e.to_string())?;
+    if znikniete.is_empty() {
+        return Ok(None);
+    }
+    let mut g = stan.drzewo.lock().unwrap();
+    let Some(arc) = g.as_mut() else { return Ok(None) };
+    let d = Arc::make_mut(arc);
+    let mut zmiana = false;
+    for id in znikniete {
+        zmiana |= d.usun(id);
+    }
+    Ok(if zmiana { d.wiersz(0, true) } else { None })
+}
+
 /// Usuwa pliki wybranych regul porzadkow (po numerach regul, nie po sciezkach z okna).
 #[tauri::command]
 pub async fn porzadki_usun(
@@ -345,6 +387,13 @@ pub fn uruchom_jako_admin(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub fn autoskan() -> Option<String> {
     std::env::var("LUZIK_AUTOSKAN").ok().filter(|s| !s.is_empty())
+}
+
+/// LUZIK_AUTOSKAN_USUN=1: po skanie okno samo klika „Usuń” na mapie i czeka, az znikniecie
+/// spoza aplikacji pokaze sie na liscie (samosprawdzenie usuwania w prawdziwym oknie).
+#[tauri::command]
+pub fn autoskan_usun() -> bool {
+    std::env::var("LUZIK_AUTOSKAN_USUN").is_ok_and(|s| s == "1")
 }
 
 /// Wypisuje na stdout jedna linie `LUZIK_AUTOSKAN {json}` od interfejsu i zamyka aplikacje.

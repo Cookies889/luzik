@@ -21,6 +21,8 @@ pub fn run() {
             komendy::kategorie,
             komendy::stare_pliki,
             komendy::usun,
+            komendy::usun_wezly,
+            komendy::odswiez_poziom,
             komendy::porzadki_usun,
             komendy::narzedzie,
             komendy::historia,
@@ -28,6 +30,7 @@ pub fn run() {
             komendy::uruchom_jako_admin,
             komendy::autoskan,
             komendy::autoskan_koniec,
+            komendy::autoskan_usun,
         ])
         .run(tauri::generate_context!())
         .expect("Luzik nie mogl sie uruchomic");

@@ -218,6 +218,35 @@ export class Sunburst {
     this.animacja = false;
   }
 
+  /**
+   * Nowe dane po usunieciu (w Luziku albo poza nim): wczytuje drzewo od korzenia i wraca do tego
+   * samego folderu, bez animacji. Gdy folder zniknal, zostaje na najblizszym istniejacym przodku.
+   */
+  async odswiez(korzen: Wiersz): Promise<void> {
+    while (this.animacja) await new Promise((r) => setTimeout(r, 50));
+    this.animacja = true;
+    const ids = this.sciezka().slice(1).map((n) => n.w.id);
+    this.ladowanie.clear();
+    this.korzen = { w: korzen, rodzic: null, dzieci: null, odcien: ODCIENIE[0] };
+    let c = this.korzen;
+    try {
+      for (const id of ids) {
+        const n = (await this.dzieci(c)).find((x) => x.w.id === id);
+        if (!n || n.w.rodzaj !== 'katalog' || n.w.liczba_dzieci === 0) break;
+        c = n;
+      }
+      await this.zaladuj(c, 1, 1);
+    } finally {
+      this.centrum = c;
+      this.podswietlony = null;
+      this.opcje.naNajechanie(null, 0, 0);
+      this.luki = this.uklad(c, PIERSCIENIE + 1);
+      this.rysuj(this.luki, { x0: 0, x1: 1, s: 0 });
+      this.animacja = false;
+    }
+    this.opcje.naZmiane(c);
+  }
+
   oddal(): Promise<void> {
     return this.centrum.rodzic ? this.przejdz(this.centrum.rodzic) : Promise.resolve();
   }

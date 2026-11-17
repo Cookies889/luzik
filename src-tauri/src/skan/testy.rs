@@ -198,3 +198,32 @@ fn lista_dyskow_ma_dysk_z_korzeniem() {
     assert!(!dyski.is_empty());
     assert!(dyski.iter().all(|d| d.rozmiar > 0 && d.wolne <= d.rozmiar && !d.system_plikow.is_empty()));
 }
+
+#[test]
+fn znikniete_poza_luzikiem_wypadaja_z_wyniku() {
+    let t = tempfile::tempdir().unwrap();
+    drzewo_probne(t.path());
+    let mut w = skan(t.path());
+    let d = &mut w.drzewo;
+    assert!(d.znikniete(0).is_empty(), "zaraz po skanie wszystko jest na dysku");
+    let przed = d.korzen().unwrap().na_dysku;
+    let a = d.znajdz(&t.path().join("a").to_string_lossy()).unwrap();
+    let rozmiar_a = d.wezel(a).unwrap().na_dysku;
+    // Znajomy kasuje folder i plik w Eksploratorze, Luzik dalej ma stary wynik.
+    fs::remove_dir_all(t.path().join("a")).unwrap();
+    fs::remove_file(t.path().join("jeden.bin")).unwrap();
+    let mut z = d.znikniete(0);
+    z.sort_unstable();
+    assert_eq!(z.len(), 2, "folder a i plik jeden.bin");
+    for id in z {
+        assert!(d.usun(id));
+    }
+    let po = d.korzen().unwrap().na_dysku;
+    assert!(przed - po >= rozmiar_a, "przed {przed}, po {po}, folder a {rozmiar_a}");
+    assert!(d.znajdz(&t.path().join("a").to_string_lossy()).is_none());
+    assert!(d.znikniete(0).is_empty(), "po odswiezeniu nic wiecej nie brakuje");
+    // Wezel, ktory zniknal razem z rodzicem, zglasza tylko siebie.
+    let c = d.znajdz(&t.path().join("z spacja").to_string_lossy()).unwrap();
+    fs::remove_dir_all(t.path().join("z spacja")).unwrap();
+    assert_eq!(d.znikniete(c), vec![c]);
+}

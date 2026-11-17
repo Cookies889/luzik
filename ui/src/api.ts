@@ -170,6 +170,10 @@ export interface Backend {
   starePliki(minMb: number, dni: number): Promise<StaryPlik[]>;
   usun(sciezki: string[], tryb: Tryb, opis: string): Promise<WynikUsuwania>;
   porzadkiUsun(ids: string[], tryb: Tryb): Promise<WynikUsuwania>;
+  /** Usuwa pozycje mapy dysku po numerach wezlow (pliki i cale foldery). */
+  usunWezly(ids: number[], tryb: Tryb, opis: string): Promise<WynikUsuwania>;
+  /** Wyrzuca z wyniku to, czego nie ma juz na dysku (folder i jego dzieci); nowy korzen albo null. */
+  odswiezPoziom(idWezla: number): Promise<Wiersz | null>;
   narzedzie(id: string): Promise<WynikNarzedzia>;
   historia(): Promise<WpisHistorii[]>;
   admin(): Promise<StanAdmina>;
@@ -177,6 +181,8 @@ export interface Backend {
   /** Sciezka z LUZIK_AUTOSKAN (samosprawdzenie prawdziwego okna) albo null. */
   autoskan(): Promise<string | null>;
   autoskanKoniec(wynik: unknown): Promise<void>;
+  /** LUZIK_AUTOSKAN_USUN=1: autoskan sprawdza tez usuwanie z mapy i odswiezanie. */
+  autoskanUsun(): Promise<boolean>;
 }
 
 function wTauri(): boolean {
@@ -205,12 +211,15 @@ async function backendTauri(): Promise<Backend> {
     starePliki: (minMb, dni) => invoke<StaryPlik[]>('stare_pliki', { minMb, dni, n: 200 }),
     usun: (sciezki, tryb, opis) => invoke<WynikUsuwania>('usun', { sciezki, tryb, opis }),
     porzadkiUsun: (ids, tryb) => invoke<WynikUsuwania>('porzadki_usun', { ids, tryb }),
+    usunWezly: (ids, tryb, opis) => invoke<WynikUsuwania>('usun_wezly', { ids, tryb, opis }),
+    odswiezPoziom: async (idWezla) => (await invoke<Wiersz | null>('odswiez_poziom', { idWezla })) ?? null,
     narzedzie: (id) => invoke<WynikNarzedzia>('narzedzie', { id }),
     historia: () => invoke<WpisHistorii[]>('historia'),
     admin: () => invoke<StanAdmina>('admin'),
     uruchomJakoAdmin: () => invoke<void>('uruchom_jako_admin'),
     autoskan: async () => (await invoke<string | null>('autoskan')) ?? null,
     autoskanKoniec: (wynik) => invoke<void>('autoskan_koniec', { wynik }),
+    autoskanUsun: () => invoke<boolean>('autoskan_usun'),
   };
 }
 
